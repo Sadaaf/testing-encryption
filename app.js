@@ -1,3 +1,4 @@
+require('dotenv').config()
 const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
@@ -5,7 +6,6 @@ const mongoose = require("mongoose");
 
 //Encrypts the required data using a key in DB
 const encrypt = require('mongoose-encryption');
-const key = "ThiskeywillEncryptmyDatabase."
 
 const app = express()
 
@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema({
     password: String
 });
 
-userSchema.plugin(encrypt, { secret: key, encryptedFields: ['password'] })
+userSchema.plugin(encrypt, { secret: process.env.key, encryptedFields: ['password'] })
 
 const User = mongoose.model("User",userSchema);
 
