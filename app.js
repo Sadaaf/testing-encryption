@@ -11,6 +11,7 @@ const session = require("express-session");
 const passport = require("passport");
 const passportLocalMongoose = require("passport-local-mongoose");
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+// var FacebookStrategy = require('passport-facebook');
 const findOrCreate = require('mongoose-findorcreate')
 // const saltNumbers = 10;
 
@@ -33,7 +34,8 @@ mongoose.connect("mongodb://localhost:27017/userDB")
 const userSchema = new mongoose.Schema({
     email: String,
     password: String,
-    googleId: String
+    googleId: String,
+    secret: []
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -60,6 +62,7 @@ passport.deserializeUser(function(user, cb) {
   });
 });
 
+// PassportJS Google OAuth2.0
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
@@ -72,6 +75,53 @@ passport.use(new GoogleStrategy({
     });
   }
 ));
+
+// PassportJS Facebook OAuth 
+// passport.use(new FacebookStrategy({
+//     clientID: process.env['FACEBOOK_APP_ID'],
+//     clientSecret: process.env['FACEBOOK_APP_SECRET'],
+//     callbackURL: 'https://localhost:3000/oauth2/redirect/secrets'
+//   },
+//   function(accessToken, refreshToken, profile, cb) {
+//     db.get('SELECT * FROM federated_credentials WHERE provider = ? AND subject = ?'), [
+//       'https://www.facebook.com',
+//       profile.id
+//     ], function(err, cred) {
+//       if (err) { return cb(err); }
+//       if (!cred) {
+//         // The Facebook account has not logged in to this app before.  Create a
+//         // new user record and link it to the Facebook account.
+//         db.run('INSERT INTO users (name) VALUES (?)', [
+//           profile.displayName
+//         ], function(err) {
+//           if (err) { return cb(err); }
+
+//           var id = this.lastID;
+//           db.run('INSERT INTO federated_credentials (user_id, provider, subject) VALUES (?, ?, ?)', [
+//             id,
+//             'https://www.facebook.com',
+//             profile.id
+//           ], function(err) {
+//             if (err) { return cb(err); }
+//             var user = {
+//               id: id.toString(),
+//               name: profile.displayName
+//             };
+//             return cb(null, user);
+//           });
+//         });
+//       } else {
+//         // The Facebook account has previously logged in to the app.  Get the
+//         // user record linked to the Facebook account and log the user in.
+//         db.get('SELECT * FROM users WHERE id = ?', [ cred.user_id ], function(err, user) {
+//           if (err) { return cb(err); }
+//           if (!user) { return cb(null, false); }
+//           return cb(null, user);
+//         });
+//       }
+//     }
+//   }
+// ));
 
 app.get("/",  function (req, res) {
     res.render("home");
@@ -86,6 +136,16 @@ app.get('/auth/google/secrets',
     // Successful authentication, redirect home.
     res.redirect('/secrets');
   });
+
+// app.get('/login/facebook', passport.authenticate('facebook'));
+
+// app.get('/oauth2/redirect/secrets',
+//   passport.authenticate('facebook', { failureRedirect: '/login', failureMessage: true }),
+//   function(req, res) {
+//     res.redirect('/secrets');
+//   }
+// );
+
 
 app.get("/login", function (req, res) {
     res.render("login");
@@ -114,11 +174,15 @@ app.get("/register", function (req, res) {
 })
 
 app.get("/secrets", function (req,res) {
-    if(req.isAuthenticated()){
-        res.render("secrets");
-    }else{
-        res.redirect("/login");
-    }
+    User.find({secret:{$ne: null}}, function (err, foundUsers) {
+        if(err){
+            console.log(er)
+        }else{
+            if(foundUsers){
+                res.render("secrets", {usersWithSecrets: foundUsers})
+            }
+        }
+    })
 })
 
 app.get("/logout", function (req, res) {
@@ -142,6 +206,35 @@ app.post("/register", function (req, res) {
         }
     })
 });
+
+app.get("/submit", function (req, res) {
+    if(req.isAuthenticated()){
+        res.render("submit")
+    }
+    else{
+        res.redirect("/login")
+    }
+})
+
+app.post("/submit", function (req, res) {
+    User.findById(req.user.id, function (err, foundUser) {
+        if(err){
+            console.log(err)
+        }else{
+            if(foundUser){
+                foundUser.secret.push(req.body.secret)
+                foundUser.save(function (error) {
+                    if(error){
+                        console.log(error)
+                    }
+                    else{
+                        res.redirect("/secrets")
+                    }
+                })
+            }
+        }
+    })
+})
 
 app.listen(3000, function () {
     console.log("Server started on port 3000")
